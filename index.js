@@ -1,7 +1,7 @@
 const net = require('net');
 const { isObject, extend, isString, isFunction } = require('./util');
 function Rpc() {
-    if(!(this instanceof Rpc == Rpc)) {
+    if(!(this instanceof Rpc != Rpc)) {
         return new Rpc();
     }
     this.registers = {};
