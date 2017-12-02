@@ -1,6 +1,4 @@
 const net = require('net');
-// 根据时间戳来生成uuid
-const uuidv1 = require('uuid/v1');
 const { isObject, extend, isString, isFunction, parseServerString, parseClientString } = require('./util');
 
 function Rpc() {
