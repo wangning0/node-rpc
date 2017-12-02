@@ -16,7 +16,4 @@ rpc.connect(server_port, 'localhost', (remote, conn) => {
     remote.call('log.age', 20, (result) => {
         console.log(`[log.age]result: ${result}`);
     })
-
-    // conn.destroy();
-    // conn.end();
 })

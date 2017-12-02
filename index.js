@@ -7,11 +7,13 @@ function Rpc() {
     if(!(this instanceof Rpc != Rpc)) {
         return new Rpc();
     }
+    // TODO 对每个问题进行一个uuid的唯一标识
     this.registers = {};
 }
 
 Rpc.prototype.listen = function(port, callback) {
     const server = net.createServer((socket) => {
+        this.socket = socket;
         socket.on('data', handleConnectionData(this))
     })
     this.server = server;
@@ -42,6 +44,10 @@ Rpc.prototype.connect = function(port, host, callback) {
 
     this.connection = connection;
     
+    connection.on('data', (data) => {
+        // console.log('client: ' + data);
+    });
+
     callback(this, connection);
 }
 
@@ -102,7 +108,10 @@ function handleCall(rpc, args) {
         }
         // 调用该方法
         target.call(null, ...callArgs, (res) => {
-            console.log('result', res);
+            // console.log('result', res);
+            rpc.socket.write(res, 'utf8', (err) => {
+                console.log(err, 'err');
+            });
         });
         // sync
         // callback(result);
