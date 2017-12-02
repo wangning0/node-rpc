@@ -1,14 +1,14 @@
 const net = require('net');
 // 根据时间戳来生成uuid
 const uuidv1 = require('uuid/v1');
-const { isObject, extend, isString, isFunction, parseString } = require('./util');
+const { isObject, extend, isString, isFunction, parseServerString, parseClientString } = require('./util');
 
 function Rpc() {
     if(!(this instanceof Rpc != Rpc)) {
         return new Rpc();
     }
-    // TODO 对每个问题进行一个uuid的唯一标识
     this.registers = {};
+    this.clientEvent = {}
 }
 
 Rpc.prototype.listen = function(port, callback) {
@@ -43,10 +43,8 @@ Rpc.prototype.connect = function(port, host, callback) {
     connection.setKeepAlive(true);
 
     this.connection = connection;
-    
-    connection.on('data', (data) => {
-        // console.log('client: ' + data);
-    });
+
+    connection.on('data', handleResultData(this));
 
     callback(this, connection);
 }
@@ -55,6 +53,7 @@ Rpc.prototype.call = function() {
     // client 端
     const args = [...arguments];
     const callArgs = args.slice(0, args.length - 1);
+    this.clientEvent[args[0]] = args.pop();
     this.connection.write(JSON.stringify(callArgs), 'utf8', (err) => {
         if(err){
             console.log('call function error');
@@ -67,10 +66,26 @@ Rpc.connect = function() {
     return rpc.connect.apply(rpc, arguments);
 }
 
+function handleResultData(rpc) {
+    return function(data) {
+        const { args, multi } = parseClientString(data.toString())
+        if(!multi) {
+            handleResult(rpc, args)
+        } else {
+            args.forEach((item, index) => {
+                handleResult(rpc, item)
+            })
+        }
+    }
+}
+
+function handleResult(rpc, result) {
+    rpc.clientEvent[result.moduleName](result.result);
+}
 function handleConnectionData(rpc) {
     return function(data) {
         // Node底层会存在批量写的过程,所以需要对传过来的data进行预处理
-        const { args, multi } = parseString(data.toString())
+        const { args, multi } = parseServerString(data.toString())
         if(!multi) {
             handleCall(rpc, args)
         } else {
@@ -108,13 +123,15 @@ function handleCall(rpc, args) {
         }
         // 调用该方法
         target.call(null, ...callArgs, (res) => {
-            // console.log('result', res);
-            rpc.socket.write(res, 'utf8', (err) => {
-                console.log(err, 'err');
+            const data = {};
+            data.moduleName = moduleName;
+            data.result = res;
+            rpc.socket.write(JSON.stringify(data), 'utf8', (err) => {
+                if(err) {
+                    console.log('回调执行失败');
+                }
             });
         });
-        // sync
-        // callback(result);
     }
 }
 
