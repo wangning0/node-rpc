@@ -1,5 +1,8 @@
 const net = require('net');
-const { isObject, extend, isString, isFunction } = require('./util');
+// 根据时间戳来生成uuid
+const uuidv1 = require('uuid/v1');
+const { isObject, extend, isString, isFunction, parseString } = require('./util');
+
 function Rpc() {
     if(!(this instanceof Rpc != Rpc)) {
         return new Rpc();
@@ -8,8 +11,8 @@ function Rpc() {
 }
 
 Rpc.prototype.listen = function(port, callback) {
-    const server = net.createServer((client) => {
-        
+    const server = net.createServer((socket) => {
+        socket.on('data', handleConnectionData(this))
     })
     this.server = server;
     server.listen(port, callback);
@@ -22,10 +25,10 @@ Rpc.prototype.register = function(moduleName, module) {
     }
 
     if(this.registers[moduleName]) {
-        extend(module, this.register[moduleName]);
+        extend(module, this.registers[moduleName]);
     }
 
-    this.register[moduleName] = module;
+    this.registers[moduleName] = module;
 }
 
 Rpc.prototype.connect = function(port, host, callback) {
@@ -43,14 +46,41 @@ Rpc.prototype.connect = function(port, host, callback) {
 }
 
 Rpc.prototype.call = function() {
+    // client 端
     const args = [...arguments];
+    const callArgs = args.slice(0, args.length - 1);
+    this.connection.write(JSON.stringify(callArgs), 'utf8', (err) => {
+        if(err){
+            console.log('call function error');
+        }
+    })
+}
+
+Rpc.connect = function() {
+    const rpc = new Rpc();
+    return rpc.connect.apply(rpc, arguments);
+}
+
+function handleConnectionData(rpc) {
+    return function(data) {
+        // Node底层会存在批量写的过程,所以需要对传过来的data进行预处理
+        const { args, multi } = parseString(data.toString())
+        if(!multi) {
+            handleCall(rpc, args)
+        } else {
+            args.forEach((item, index) => {
+                handleCall(rpc, item)
+            })
+        }
+    }
+}
+
+function handleCall(rpc, args) {
     const moduleName = args[0];
-    const callback = args[args.length - 1];
-    const callArgs = args.slice(1, args.length - 1);
+    const callArgs = args.slice(1, args.length);
     const regx = /([^\.\[\]])+/g
-    if(!isString(moduleName) || isFunction(callback)) {
+    if(!isString(moduleName)) {
         // 出错处理 call函数第一个参数为调用对象名 最后一个参数是返回值
-        // TODO 出错 通知给client
         console.log('call函数第一个参数为调用对象名 最后一个参数是返回值');
         return;
     }
@@ -60,7 +90,8 @@ Rpc.prototype.call = function() {
         let target;
         let index = 0;
         while(index != length) {
-            target = target ? target[match[index]] : this.registers[match[index]]
+            target = target ? target[match[index]] : rpc.registers[match[index]]
+
             if(target) {
                 index++;
             } else {
@@ -70,15 +101,13 @@ Rpc.prototype.call = function() {
             }
         }
         // 调用该方法
-        const result  = target.apply(null, [...callArgs], (err, res) => {
-            // async
-            callback(err, res);
+        target.call(null, ...callArgs, (res) => {
+            console.log('result', res);
         });
         // sync
-        callback(result);
+        // callback(result);
     }
-
 }
-Rpc.connect = Rpc.prototype.connect;
+
 Rpc.listen = Rpc.listen;
 module.exports = Rpc;

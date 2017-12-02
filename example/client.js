@@ -1,7 +1,6 @@
 'use strict';
 
-const Rpc = require('../index');
-const rpc = new Rpc();
+const rpc = require('../index');
 const server_port = 9988;
 
 rpc.connect(server_port, 'localhost', (remote, conn) => {
@@ -18,6 +17,6 @@ rpc.connect(server_port, 'localhost', (remote, conn) => {
         console.log(`[log.age]result: ${result}`);
     })
 
-    conn.destroy();
-    conn.end();
+    // conn.destroy();
+    // conn.end();
 })
